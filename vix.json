@@ -1,9 +1,9 @@
 {
   "name": "app",
   "namespace": "cnerium",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "header-only",
-  "include": "include/cnerium/app.hpp",
+  "include": "include/cnerium",
   "license": "MIT",
   "description": "the fast, minimalist web framework for Vix.",
   "keywords": [
@@ -26,8 +26,12 @@
   ],
   "deps": [
     {
-      "id": "cnerium/runtime",
-      "version": "0.3.0"
+      "cnerium/runtime": "0.2.0",
+      "cnerium/server": "0.4.0",
+      "cnerium/http": "0.6.0",
+      "cnerium/middleware": "0.2.0",
+      "cnerium/router": "0.5.1",
+      "cnerium/json": "0.3.0"
     }
   ]
 }
