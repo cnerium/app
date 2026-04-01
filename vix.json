@@ -1,7 +1,7 @@
 {
   "name": "app",
   "namespace": "cnerium",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "type": "header-only",
   "include": "include",
   "license": "MIT",
@@ -28,26 +28,6 @@
     {
       "id": "cnerium/runtime",
       "version": "0.2.0"
-    },
-    {
-      "id": "cnerium/server",
-      "version": "0.4.0"
-    },
-    {
-      "id": "cnerium/http",
-      "version": "0.6.0"
-    },
-    {
-      "id": "cnerium/middleware",
-      "version": "0.2.0"
-    },
-    {
-      "id": "cnerium/router",
-      "version": "0.5.1"
-    },
-    {
-      "id": "cnerium/json",
-      "version": "0.3.0"
     }
   ]
 }
