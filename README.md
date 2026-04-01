@@ -1,2 +1,7 @@
-# cnerium
-the fast, minimalist web framework for Vix.
+# app
+
+Header-only C++ library scaffold.
+
+```bash
+vix tests
+```
