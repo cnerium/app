@@ -1,17 +1,23 @@
 {
   "name": "app",
-  "namespace": "gaspardkirira",
+  "namespace": "cnerium",
   "version": "0.1.0",
   "type": "header-only",
   "include": "include",
   "license": "MIT",
-  "description": "A tiny header-only C++ library.",
+  "description": "the fast, minimalist web framework for Vix.",
   "keywords": [
     "cpp",
-    "header-only",
+    "framework",
+    "http",
+    "web",
+    "runtime",
+    "router",
+    "middleware",
+    "cnerium",
     "vix"
   ],
-  "repository": "https://github.com/Gaspardkirira/app",
+  "repository": "https://github.com/cnerium/app",
   "authors": [
     {
       "name": "Gaspard Kirira",

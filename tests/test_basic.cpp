@@ -1,9 +1,16 @@
-#include <app/app.hpp>
-#include <iostream>
+#include <cassert>
+
+#include <cnerium/app/app.hpp>
 
 int main()
 {
-  auto nodes = app::make_chain(5);
-  std::cout << "nodes=" << nodes.size() << "\n";
-  return nodes.size() == 5 ? 0 : 1;
+  using namespace cnerium::app;
+
+  App app;
+  assert(app.config().valid());
+
+  AppHandler handler = [](AppContext &) {};
+  assert(static_cast<bool>(handler));
+
+  return 0;
 }
