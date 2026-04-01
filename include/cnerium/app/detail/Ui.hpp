@@ -54,7 +54,7 @@ namespace cnerium::app::detail
     os << GRAY << "• " << RESET
        << GRAY << k << RESET
        << GRAY << ": " << RESET
-       << YELLOW << BOLD << value << RESET << "\n";
+       << YELLOW << BOLD << value << RESET << std::endl;
   }
 
   inline void section(std::ostream &os, std::string_view title)
