@@ -93,7 +93,7 @@ namespace cnerium::app::detail
        << RESET
        << " "
        << message
-       << std::endl;
+       << "\n";
   }
 
   inline void info(std::string_view msg)
@@ -127,7 +127,7 @@ namespace cnerium::app::detail
     section(std::cout, name);
     kv(std::cout, "version", version);
     kv(std::cout, "url", (std::string("http://") + std::string(host) + ":" + std::string(port)));
-    std::cout << GRAY << "• " << RESET << "Press Ctrl+C to stop" << std::endl;
+    std::cout << GRAY << "• " << RESET << "Press Ctrl+C to stop\n";
   }
 
 } // namespace cnerium::app::detail
