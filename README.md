@@ -4,13 +4,9 @@ High-level application framework for the Cnerium web stack.
 
 **Header-only. Deterministic. App + Routing + Runtime.**
 
----
-
-## Download
+## Vix registry
 
 https://vixcpp.com/registry/pkg/cnerium/app
-
----
 
 ## Overview
 
@@ -34,8 +30,6 @@ It is designed to be:
 - predictable
 - fully deterministic
 - easy to use
-
----
 
 ## Why cnerium/app?
 
@@ -65,8 +59,6 @@ Result:
 - simple API
 - scalable system
 
----
-
 ## Dependencies
 
 Depends on:
@@ -79,8 +71,6 @@ This ensures:
 - clean separation between layers
 - reusable execution engine
 - flexible architecture
-
----
 
 ## Installation
 
@@ -99,8 +89,6 @@ git clone https://github.com/cnerium/app.git
 
 Add `include/` to your project.
 
----
-
 ## Core Concepts
 
 ### App
@@ -114,8 +102,7 @@ Main entry point of the framework.
 ### Route
 
 ```cpp
-app.get("/users/:id", [](AppContext &ctx)
-{
+app.get("/users/:id", [](AppContext &ctx){
   ctx.text("user");
 });
 ```
@@ -123,8 +110,7 @@ app.get("/users/:id", [](AppContext &ctx)
 ### Middleware
 
 ```cpp
-app.use([](auto &ctx, auto next)
-{
+app.use([](auto &ctx, auto next){
   ctx.response().set_header("X-App", "Cnerium");
   next();
 });
@@ -153,21 +139,16 @@ ctx.status(Status::ok);
 ### Runtime
 
 ```cpp
-app.runtime().post([]()
-{
+app.runtime().post([](){
   // background task
 });
 ```
-
----
 
 ## Typical Flow
 
 ```text
 HTTP → server → app handler → runtime → response
 ```
-
----
 
 ## Example
 
@@ -176,12 +157,10 @@ HTTP → server → app handler → runtime → response
 
 using namespace cnerium::app;
 
-int main()
-{
+int main(){
   App app;
 
-  app.get("/", [](AppContext &ctx)
-  {
+  app.get("/", [](AppContext &ctx){
     ctx.text("Hello from Cnerium");
   });
 
@@ -189,35 +168,26 @@ int main()
 }
 ```
 
----
-
 ## Routing Example
 
 ```cpp
-app.get("/users/:id", [](AppContext &ctx)
-{
+app.get("/users/:id", [](AppContext &ctx){
   ctx.text(std::string(ctx.params().get("id")));
 });
 ```
 
----
-
 ## Middleware Example
 
 ```cpp
-app.use([](auto &ctx, auto next)
-{
+app.use([](auto &ctx, auto next){
   if (ctx.request().path() == "/admin")
   {
     ctx.text("Access denied");
     return;
   }
-
   next();
 });
 ```
-
----
 
 ## JSON Response Example
 
@@ -231,8 +201,6 @@ app.get("/", [](AppContext &ctx)
 });
 ```
 
----
-
 ## Runtime Example
 
 ```cpp
@@ -242,8 +210,6 @@ app.runtime().post([]()
 });
 ```
 
----
-
 ## Execution Rules
 
 - routes are evaluated in insertion order
@@ -251,8 +217,6 @@ app.runtime().post([]()
 - middleware runs before handler
 - middleware can stop execution
 - runtime executes tasks concurrently
-
----
 
 ## Complexity
 
@@ -263,15 +227,11 @@ app.runtime().post([]()
 | middleware execution | O(n) |
 | task scheduling | O(1) |
 
----
-
 ## Architecture
 
 ```text
 App → Server → Router → Middleware → Handler → Runtime → Worker
 ```
-
----
 
 ## Design Philosophy
 
@@ -281,16 +241,12 @@ App → Server → Router → Middleware → Handler → Runtime → Worker
 - no hidden magic
 - composable system
 
----
-
 ## Tests
 
 ```bash
 vix build
 vix test
 ```
-
----
 
 ## License
 
