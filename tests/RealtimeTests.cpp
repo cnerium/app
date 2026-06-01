@@ -31,7 +31,6 @@ TEST(RealtimeTests, DefaultConfigIsDisabled)
   cnerium::realtime::RealtimeConfig config;
 
   EXPECT_FALSE(config.is_enabled());
-  EXPECT_FALSE(config.enabled());
   EXPECT_EQ(config.endpoint(), "/ws");
   EXPECT_EQ(config.host(), "0.0.0.0");
   EXPECT_EQ(config.port(), 9090);
@@ -48,7 +47,6 @@ TEST(RealtimeTests, EnabledConfigIsValid)
           9091);
 
   EXPECT_TRUE(config.is_enabled());
-  EXPECT_TRUE(config.enabled());
   EXPECT_EQ(config.endpoint(), "/ws");
   EXPECT_EQ(config.host(), "127.0.0.1");
   EXPECT_EQ(config.port(), 9091);

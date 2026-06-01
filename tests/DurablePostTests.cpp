@@ -20,7 +20,7 @@
 #include <vix/http/Request.hpp>
 
 #include <gtest/gtest.h>
-
+#include <stdexcept>
 #include <string>
 
 namespace
@@ -32,7 +32,6 @@ namespace
     vix::http::Request request;
 
     request.set_method("POST");
-    request.set_path("/orders");
     request.set_target("/orders");
     request.set_body(std::move(body));
 
@@ -216,9 +215,12 @@ TEST(DurablePostTests, HandlerExceptionReturnsInternalError)
   cnerium::http::DurableRoute route{
       "orders.create",
       store,
-      [](cnerium::http::DurableRequest &)
+      [](cnerium::http::DurableRequest &) -> cnerium::http::DurableResponse
       {
         throw std::runtime_error("handler failed");
+
+        return cnerium::http::DurableResponse::internal_error(
+            "handler failed");
       }};
 
   const auto request =

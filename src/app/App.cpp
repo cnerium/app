@@ -26,7 +26,7 @@ namespace cnerium::app
   }
 
   App::App(AppConfig config)
-      : app_(config.vix_config_path()),
+      : app_(),
         runtime_(std::move(config))
   {
   }
@@ -34,25 +34,6 @@ namespace cnerium::app
   App::~App()
   {
     stop();
-  }
-
-  App::App(App &&other) noexcept
-      : app_(std::move(other.app_)),
-        runtime_(std::move(other.runtime_))
-  {
-  }
-
-  App &App::operator=(App &&other) noexcept
-  {
-    if (this != &other)
-    {
-      stop();
-
-      app_ = std::move(other.app_);
-      runtime_ = std::move(other.runtime_);
-    }
-
-    return *this;
   }
 
   App &App::durable_post(
@@ -134,7 +115,9 @@ namespace cnerium::app
       return 1;
     }
 
-    return app_.run();
+    app_.run(runtime_.vix_config());
+
+    return 0;
   }
 
   bool App::start()

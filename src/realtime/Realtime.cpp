@@ -210,7 +210,7 @@ namespace cnerium::realtime
 
     try
     {
-      server_->broadcast_json_message(
+      server_->broadcast_json(
           event.type(),
           to_vix_payload(event.payload()));
 
@@ -243,7 +243,7 @@ namespace cnerium::realtime
 
     try
     {
-      server_->broadcast_json_message_to_room(
+      server_->broadcast_room_json(
           room,
           event.type(),
           to_vix_payload(event.payload()));

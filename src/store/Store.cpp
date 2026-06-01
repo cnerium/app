@@ -144,7 +144,7 @@ namespace cnerium::store
 
     auto result = client_.get(std::string{key});
 
-    if (!result)
+    if (result.is_err())
     {
       return std::nullopt;
     }

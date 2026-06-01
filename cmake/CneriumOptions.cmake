@@ -12,23 +12,25 @@ option(CNERIUM_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 # ========================
 
 set(CNERIUM_VIX_SOURCE_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/../vix"
-    CACHE PATH "Path to Vix source tree"
+    ""
+    CACHE PATH "Optional path to a local Vix source tree"
 )
 
 set(CNERIUM_SDK_SOURCE_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/../sdk"
-    CACHE PATH "Path to Softadastra SDK source tree"
+    ""
+    CACHE PATH "Optional path to a local Softadastra SDK source tree"
 )
 
 # ========================
 # Build policy
 # ========================
 
-set(CNERIUM_ENABLE_LOCAL_DEPS ON CACHE BOOL
-    "Allow Cnerium to use local Vix and Softadastra SDK source trees when packages are not installed"
+option(CNERIUM_ENABLE_LOCAL_DEPS
+    "Allow Cnerium to use explicitly provided local dependency source trees"
+    ON
 )
 
-set(CNERIUM_ENABLE_PCH OFF CACHE BOOL
+option(CNERIUM_ENABLE_PCH
     "Enable private precompiled headers for Cnerium"
+    OFF
 )

@@ -73,12 +73,12 @@ namespace cnerium::app
     /**
      * @brief Moves an application.
      */
-    App(App &&other) noexcept;
+    App(App &&) noexcept = delete;
 
     /**
      * @brief Move-assigns an application.
      */
-    App &operator=(App &&other) noexcept;
+    App &operator=(App &&) noexcept = delete;
 
     /**
      * @brief Registers a durable POST route.
