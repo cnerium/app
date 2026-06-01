@@ -25,7 +25,9 @@
       "name": "dev-msvc",
       "displayName": "Dev (MSVC, Release)",
       "generator": "Visual Studio 17 2022",
-      "architecture": { "value": "x64" },
+      "architecture": {
+        "value": "x64"
+      },
       "binaryDir": "build-msvc",
       "cacheVariables": {
         "CMAKE_CONFIGURATION_TYPES": "Release"
@@ -33,8 +35,21 @@
     }
   ],
   "buildPresets": [
-    { "name": "build-ninja", "displayName": "Build (ALL, Ninja Debug)", "configurePreset": "dev-ninja" },
-    { "name": "build-release", "displayName": "Build (ALL, Ninja Release)", "configurePreset": "release" },
-    { "name": "build-msvc", "displayName": "Build (ALL, MSVC)", "configurePreset": "dev-msvc", "configuration": "Release" }
+    {
+      "name": "build-ninja",
+      "displayName": "Build (ALL, Ninja Debug)",
+      "configurePreset": "dev-ninja"
+    },
+    {
+      "name": "build-release",
+      "displayName": "Build (ALL, Ninja Release)",
+      "configurePreset": "release"
+    },
+    {
+      "name": "build-msvc",
+      "displayName": "Build (ALL, MSVC)",
+      "configurePreset": "dev-msvc",
+      "configuration": "Release"
+    }
   ]
 }
