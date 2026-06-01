@@ -1,33 +1,31 @@
 {
-  "name": "app",
-  "namespace": "cnerium",
-  "version": "0.5.0",
-  "type": "header-only",
+  "name": "cnerium",
+  "namespace": "softadastra",
+  "version": "1.0.0",
+  "type": "library",
   "include": "include",
   "license": "MIT",
-  "description": "High-level application layer for the Cnerium web framework.",
+  "description": "Reliability-first application framework built on Vix and the Softadastra SDK for durable APIs and realtime applications.",
   "keywords": [
     "cpp",
     "framework",
-    "http",
-    "web",
-    "runtime",
-    "router",
-    "middleware",
-    "cnerium",
-    "vix"
+    "reliability",
+    "durable-api",
+    "idempotency",
+    "replay-protection",
+    "stored-response",
+    "realtime",
+    "websocket",
+    "softadastra",
+    "vix",
+    "cnerium"
   ],
-  "repository": "https://github.com/cnerium/app",
+  "repository": "https://github.com/softadastra/cnerium",
   "authors": [
     {
-      "name": "Gaspard Kirira",
-      "github": "Gaspardkirira"
+      "name": "Softadastra",
+      "github": "softadastra"
     }
   ],
-  "deps": [
-    {
-      "id": "cnerium/runtime",
-      "version": "0.4.0"
-    }
-  ]
+  "deps": []
 }
