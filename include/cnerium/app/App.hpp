@@ -17,9 +17,11 @@
 #define CNERIUM_APP_APP_HPP
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <vix/app/App.hpp>
 
@@ -33,77 +35,97 @@
 namespace cnerium::app
 {
   /**
-   * @brief Main Cnerium application facade.
+   * @brief Cnerium layer attached to an existing vix::App.
    *
-   * App is the public entry point for building reliability-first applications
-   * on top of Vix and the Softadastra SDK.
+   * AttachedApp is the public Cnerium entry point.
    *
-   * Cnerium does not create its own HTTP server, router, middleware engine,
-   * session system, WebSocket protocol, or durability engine.
+   * It does not own the Vix application.
+   * It does not replace Vix.
+   * It does not create a second backend framework.
    *
-   * Responsibilities:
-   * - expose durable route helpers
-   * - connect durable handlers to Vix HTTP routes
-   * - use Softadastra SDK-backed storage through AppRuntime
-   * - expose simple realtime event emission through Vix WebSocket
+   * Instead, it attaches reliability-first features to an existing vix::App.
+   *
+   * Vix remains responsible for:
+   * - HTTP server
+   * - routing
+   * - middleware
+   * - request parsing
+   * - response writing
+   * - application runtime
+   * - developer workflow
+   *
+   * Cnerium adds:
+   * - durable routes
+   * - idempotency
+   * - replay protection
+   * - stored responses
+   * - Softadastra SDK-backed persistence
+   * - realtime application events through Vix WebSocket
    */
-  class App
+  class AttachedApp
   {
   public:
     /**
-     * @brief Creates a Cnerium app with default development configuration.
-     */
-    App();
-
-    /**
-     * @brief Creates a Cnerium app with explicit configuration.
+     * @brief Attaches Cnerium to an existing Vix app with default configuration.
      *
-     * @param config Cnerium application configuration.
+     * @param app Existing Vix application.
      */
-    explicit App(AppConfig config);
+    explicit AttachedApp(vix::App &app);
 
     /**
-     * @brief Destroys the application and stops runtime resources.
-     */
-    ~App();
-
-    App(const App &) = delete;
-    App &operator=(const App &) = delete;
-
-    /**
-     * @brief Moves an application.
-     */
-    App(App &&) noexcept = delete;
-
-    /**
-     * @brief Move-assigns an application.
-     */
-    App &operator=(App &&) noexcept = delete;
-
-    /**
-     * @brief Registers a durable POST route.
+     * @brief Attaches Cnerium to an existing Vix app with explicit configuration.
      *
-     * The route is registered into the underlying Vix app.
+     * @param app Existing Vix application.
+     * @param config Cnerium configuration.
+     */
+    AttachedApp(
+        vix::App &app,
+        AppConfig config);
+
+    /**
+     * @brief Stops Cnerium runtime resources.
+     */
+    ~AttachedApp();
+
+    AttachedApp(const AttachedApp &) = delete;
+    AttachedApp &operator=(const AttachedApp &) = delete;
+
+    /**
+     * @brief Moves an attached Cnerium layer.
+     */
+    AttachedApp(AttachedApp &&other) noexcept;
+
+    /**
+     * @brief Move-assigns an attached Cnerium layer.
+     */
+    AttachedApp &operator=(AttachedApp &&other) noexcept;
+
+    /**
+     * @brief Registers a durable POST route into the attached Vix app.
+     *
+     * The route remains a Vix route.
+     * Cnerium only wraps the handler with durability, idempotency and replay
+     * protection.
      *
      * @param path HTTP path.
      * @param operation Stable operation name used by idempotency.
      * @param handler User-defined durable route handler.
-     * @return Current application.
+     * @return Current attached Cnerium layer.
      */
-    App &durable_post(
+    AttachedApp &durable_post(
         std::string path,
         std::string operation,
         http::DurableHandler handler);
 
     /**
-     * @brief Enables realtime WebSocket support.
+     * @brief Enables realtime WebSocket support through Vix WebSocket.
      *
      * @param endpoint Public WebSocket endpoint.
      * @param host WebSocket bind host.
      * @param port WebSocket bind port.
-     * @return Current application.
+     * @return Current attached Cnerium layer.
      */
-    App &realtime(
+    AttachedApp &realtime(
         std::string endpoint = "/ws",
         std::string host = "0.0.0.0",
         std::uint16_t port = 9090);
@@ -152,26 +174,25 @@ namespace cnerium::app
         realtime::EventPayload payload = support::object());
 
     /**
-     * @brief Starts the Cnerium runtime and runs the underlying Vix app.
+     * @brief Starts Cnerium runtime resources.
      *
-     * @return Process exit code.
-     */
-    [[nodiscard]] int run();
-
-    /**
-     * @brief Starts runtime resources without blocking on the HTTP app.
+     * This opens the Softadastra SDK-backed store and starts realtime support
+     * when enabled.
+     *
+     * It does not run the HTTP server.
+     * The HTTP server remains started by vix::App::run().
      *
      * @return true if started successfully.
      */
     [[nodiscard]] bool start();
 
     /**
-     * @brief Stops runtime resources and closes the underlying Vix app.
+     * @brief Stops Cnerium runtime resources.
      */
     void stop() noexcept;
 
     /**
-     * @brief Returns true if the runtime is running.
+     * @brief Returns true if Cnerium runtime resources are running.
      *
      * @return true if running.
      */
@@ -180,58 +201,118 @@ namespace cnerium::app
     /**
      * @brief Returns the Cnerium runtime.
      *
-     * @return Application runtime.
+     * @return Runtime.
      */
     [[nodiscard]] AppRuntime &runtime() noexcept;
 
     /**
      * @brief Returns the Cnerium runtime.
      *
-     * @return Application runtime.
+     * @return Runtime.
      */
     [[nodiscard]] const AppRuntime &runtime() const noexcept;
 
     /**
-     * @brief Returns the underlying Vix app.
+     * @brief Returns the attached Vix app.
      *
      * @return Vix app.
      */
     [[nodiscard]] vix::App &vix_app() noexcept;
 
     /**
-     * @brief Returns the underlying Vix app.
+     * @brief Returns the attached Vix app.
      *
      * @return Vix app.
      */
     [[nodiscard]] const vix::App &vix_app() const noexcept;
 
     /**
-     * @brief Returns the Cnerium application configuration.
+     * @brief Returns the Cnerium configuration.
      *
-     * @return Application configuration.
+     * @return Configuration.
      */
     [[nodiscard]] const AppConfig &config() const noexcept;
 
     /**
-     * @brief Returns the Cnerium application configuration.
+     * @brief Returns the mutable Cnerium configuration.
      *
-     * @return Mutable application configuration.
+     * @return Configuration.
      */
     [[nodiscard]] AppConfig &config() noexcept;
 
   private:
-    vix::App app_;
-    AppRuntime runtime_;
+    /**
+     * @brief Returns true if this layer is attached to a Vix app.
+     *
+     * @return true if attached.
+     */
+    [[nodiscard]] bool has_app() const noexcept;
+
+  private:
+    vix::App *app_{nullptr};
+    AppRuntime runtime_{};
+    std::vector<std::unique_ptr<http::DurableRoute>> durable_routes_{};
   };
+
+  /**
+   * @brief Attaches Cnerium to an existing Vix app.
+   *
+   * This is the recommended public entry point.
+   *
+   * Example:
+   *
+   * ```cpp
+   * vix::App app;
+   * auto cnerium = cnerium::attach(app);
+   * ```
+   *
+   * @param app Existing Vix application.
+   * @return Attached Cnerium layer.
+   */
+  [[nodiscard]] AttachedApp attach(vix::App &app);
+
+  /**
+   * @brief Attaches Cnerium to an existing Vix app with explicit configuration.
+   *
+   * @param app Existing Vix application.
+   * @param config Cnerium configuration.
+   * @return Attached Cnerium layer.
+   */
+  [[nodiscard]] AttachedApp attach(
+      vix::App &app,
+      AppConfig config);
 
 } // namespace cnerium::app
 
 namespace cnerium
 {
   /**
-   * @brief Public convenience alias for the Cnerium application.
+   * @brief Public Cnerium layer attached to vix::App.
    */
-  using App = app::App;
+  using AttachedApp = app::AttachedApp;
+
+  /**
+   * @brief Attaches Cnerium to an existing Vix app.
+   *
+   * Cnerium remains inside the Vix ecosystem.
+   * Vix owns the backend.
+   * Cnerium adds reliability-first backend features.
+   *
+   * @param app Existing Vix application.
+   * @return Attached Cnerium layer.
+   */
+  [[nodiscard]] app::AttachedApp attach(vix::App &app);
+
+  /**
+   * @brief Attaches Cnerium to an existing Vix app with explicit configuration.
+   *
+   * @param app Existing Vix application.
+   * @param config Cnerium configuration.
+   * @return Attached Cnerium layer.
+   */
+  [[nodiscard]] app::AttachedApp attach(
+      vix::App &app,
+      app::AppConfig config);
 
 } // namespace cnerium
 

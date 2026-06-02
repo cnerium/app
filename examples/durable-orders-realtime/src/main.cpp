@@ -13,12 +13,16 @@
  *
  */
 
+#include <vix.hpp>
 #include <cnerium/cnerium.hpp>
 
 #include <string>
+#include <utility>
 
 int main()
 {
+  vix::App app;
+
   cnerium::app::AppConfig config =
       cnerium::app::AppConfig::development();
 
@@ -28,12 +32,25 @@ int main()
   config.set_vix_config_path("vix.json");
   config.enable_realtime("/ws", "0.0.0.0", 9090);
 
-  cnerium::App app{std::move(config)};
+  auto cnerium =
+      cnerium::attach(
+          app,
+          std::move(config));
 
-  app.durable_post(
+  app.get(
+      "/health",
+      [](auto &, auto &response)
+      {
+        response.json({
+            {"ok", true},
+            {"service", "durable-orders-realtime"},
+        });
+      });
+
+  cnerium.durable_post(
       "/orders",
       "orders.create",
-      [&app](cnerium::DurableRequest &request)
+      [&cnerium](cnerium::DurableRequest &request)
       {
         const auto body = request.json();
 
@@ -58,7 +75,7 @@ int main()
         const std::string order_id =
             "ord_" + request.idempotency_key_value();
 
-        app.emit(
+        cnerium.emit(
             "order.created",
             cnerium::support::object({
                 {"order_id", cnerium::Json(order_id)},
@@ -75,5 +92,12 @@ int main()
             }));
       });
 
-  return app.run();
+  if (!cnerium.start())
+  {
+    return 1;
+  }
+
+  app.run();
+
+  return 0;
 }

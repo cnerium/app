@@ -16,44 +16,81 @@
 #include <cnerium/app/App.hpp>
 #include <cnerium/adapters/VixHttp.hpp>
 
+#include <memory>
 #include <utility>
 
 namespace cnerium::app
 {
-  App::App()
-      : App(AppConfig::development())
+  AttachedApp::AttachedApp(vix::App &app)
+      : AttachedApp(app, AppConfig::development())
   {
   }
 
-  App::App(AppConfig config)
-      : app_(),
-        runtime_(std::move(config))
+  AttachedApp::AttachedApp(
+      vix::App &app,
+      AppConfig config)
+      : app_(&app),
+        runtime_(std::move(config)),
+        durable_routes_()
   {
   }
 
-  App::~App()
+  AttachedApp::~AttachedApp()
   {
     stop();
   }
 
-  App &App::durable_post(
+  AttachedApp::AttachedApp(AttachedApp &&other) noexcept
+      : app_(other.app_),
+        runtime_(std::move(other.runtime_)),
+        durable_routes_(std::move(other.durable_routes_))
+  {
+    other.app_ = nullptr;
+  }
+
+  AttachedApp &AttachedApp::operator=(AttachedApp &&other) noexcept
+  {
+    if (this != &other)
+    {
+      stop();
+
+      app_ = other.app_;
+      runtime_ = std::move(other.runtime_);
+      durable_routes_ = std::move(other.durable_routes_);
+
+      other.app_ = nullptr;
+    }
+
+    return *this;
+  }
+
+  AttachedApp &AttachedApp::durable_post(
       std::string path,
       std::string operation,
       http::DurableHandler handler)
   {
+    if (!has_app())
+    {
+      return *this;
+    }
+
     auto route =
-        std::make_shared<http::DurableRoute>(
+        std::make_unique<http::DurableRoute>(
             std::move(operation),
             runtime_.store(),
             std::move(handler));
 
-    app_.post(
+    auto *route_ptr = route.get();
+
+    durable_routes_.push_back(std::move(route));
+
+    app_->post(
         std::move(path),
-        [route](const vix::http::Request &request,
-                vix::http::ResponseWrapper &response)
+        [route_ptr](const vix::http::Request &request,
+                    vix::http::ResponseWrapper &response)
         {
           adapters::VixHttp::execute_route(
-              *route,
+              *route_ptr,
               request,
               response);
         });
@@ -61,7 +98,7 @@ namespace cnerium::app
     return *this;
   }
 
-  App &App::realtime(
+  AttachedApp &AttachedApp::realtime(
       std::string endpoint,
       std::string host,
       std::uint16_t port)
@@ -74,12 +111,12 @@ namespace cnerium::app
     return *this;
   }
 
-  bool App::emit(const realtime::Event &event)
+  bool AttachedApp::emit(const realtime::Event &event)
   {
     return runtime_.emit(event);
   }
 
-  bool App::emit(
+  bool AttachedApp::emit(
       std::string type,
       realtime::EventPayload payload)
   {
@@ -89,14 +126,14 @@ namespace cnerium::app
             std::move(payload)});
   }
 
-  bool App::emit_to(
+  bool AttachedApp::emit_to(
       const std::string &room,
       const realtime::Event &event)
   {
     return runtime_.emit_to(room, event);
   }
 
-  bool App::emit_to(
+  bool AttachedApp::emit_to(
       const std::string &room,
       std::string type,
       realtime::EventPayload payload)
@@ -108,69 +145,86 @@ namespace cnerium::app
             std::move(payload)});
   }
 
-  int App::run()
-  {
-    if (!start())
-    {
-      return 1;
-    }
-
-    app_.run(runtime_.vix_config());
-
-    return 0;
-  }
-
-  bool App::start()
+  bool AttachedApp::start()
   {
     return runtime_.start();
   }
 
-  void App::stop() noexcept
+  void AttachedApp::stop() noexcept
   {
-    try
-    {
-      app_.close();
-    }
-    catch (...)
-    {
-    }
-
     runtime_.stop();
   }
 
-  bool App::is_running() const noexcept
+  bool AttachedApp::is_running() const noexcept
   {
     return runtime_.is_running();
   }
 
-  AppRuntime &App::runtime() noexcept
+  AppRuntime &AttachedApp::runtime() noexcept
   {
     return runtime_;
   }
 
-  const AppRuntime &App::runtime() const noexcept
+  const AppRuntime &AttachedApp::runtime() const noexcept
   {
     return runtime_;
   }
 
-  vix::App &App::vix_app() noexcept
+  vix::App &AttachedApp::vix_app() noexcept
   {
-    return app_;
+    return *app_;
   }
 
-  const vix::App &App::vix_app() const noexcept
+  const vix::App &AttachedApp::vix_app() const noexcept
   {
-    return app_;
+    return *app_;
   }
 
-  const AppConfig &App::config() const noexcept
+  const AppConfig &AttachedApp::config() const noexcept
   {
     return runtime_.config();
   }
 
-  AppConfig &App::config() noexcept
+  AppConfig &AttachedApp::config() noexcept
   {
     return runtime_.config();
+  }
+
+  bool AttachedApp::has_app() const noexcept
+  {
+    return app_ != nullptr;
+  }
+
+  AttachedApp attach(vix::App &app)
+  {
+    return AttachedApp{app};
+  }
+
+  AttachedApp attach(
+      vix::App &app,
+      AppConfig config)
+  {
+    return AttachedApp{
+        app,
+        std::move(config)};
   }
 
 } // namespace cnerium::app
+
+namespace cnerium
+{
+  app::AttachedApp attach(vix::App &app)
+  {
+    return app::attach(app);
+  }
+
+  app::AttachedApp attach(
+      vix::App &app,
+      app::AppConfig config)
+  {
+    return app::attach(
+        app,
+        std::move(config));
+  }
+
+} // namespace cnerium
