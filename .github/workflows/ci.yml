@@ -111,15 +111,43 @@ jobs:
             asio.tar.gz \
             asio-asio-1-30-2
 
-      - name: Install Vix SDK
-        shell: bash
-        run: |
-          set -euxo pipefail
+          - name: Install Vix SDK Unix
+            if: runner.os != 'Windows'
+            shell: bash
+            run: |
+              set -euxo pipefail
 
-          curl -fsSL https://vixcpp.com/install.sh | VIX_VERSION="${VIX_VERSION}" VIX_INSTALL_KIND=sdk sh
+              curl -fsSL https://vixcpp.com/install.sh | VIX_VERSION="${VIX_VERSION}" VIX_INSTALL_KIND=sdk sh
 
-          test -f "$HOME/.local/lib/cmake/Vix/VixConfig.cmake"
-          test -f "$HOME/.local/include/vix.hpp"
+              test -f "$HOME/.local/lib/cmake/Vix/VixConfig.cmake"
+              test -f "$HOME/.local/include/vix.hpp"
+
+              echo "VIX_PREFIX=$HOME/.local" >> "$GITHUB_ENV"
+
+          - name: Install Vix SDK Windows
+            if: runner.os == 'Windows'
+            shell: pwsh
+            run: |
+              $ErrorActionPreference = "Stop"
+
+              $vixPrefix = "$env:GITHUB_WORKSPACE\deps\vix-sdk"
+              $asset = "vix-sdk-windows-x86_64.zip"
+              $url = "https://github.com/vixcpp/vix/releases/download/$env:VIX_VERSION/$asset"
+
+              New-Item -ItemType Directory -Force -Path "$vixPrefix" | Out-Null
+
+              Invoke-WebRequest -Uri "$url" -OutFile "$asset"
+              Expand-Archive -Path "$asset" -DestinationPath "$vixPrefix" -Force
+
+              if (!(Test-Path "$vixPrefix\lib\cmake\Vix\VixConfig.cmake")) {
+                Write-Error "VixConfig.cmake not found"
+              }
+
+              if (!(Test-Path "$vixPrefix\include\vix.hpp")) {
+                Write-Error "vix.hpp not found"
+              }
+
+              "VIX_PREFIX=$vixPrefix" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Fetch Softadastra low-level repository
         shell: bash
@@ -230,7 +258,7 @@ jobs:
 
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_PREFIX_PATH="$HOME/.local;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install" \
+            -DCMAKE_PREFIX_PATH="$VIX_PREFIX;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install" \
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install" \
             -DCNERIUM_BUILD_TESTS=${{ matrix.tests }} \
             -DCNERIUM_BUILD_EXAMPLES=${{ matrix.examples }} \
@@ -303,7 +331,7 @@ jobs:
 
           cmake -S smoke-cnerium -B smoke-cnerium/build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/install;$HOME/.local;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install"
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/install;$VIX_PREFIX;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install"
 
           cmake --build smoke-cnerium/build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
 
