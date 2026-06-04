@@ -26,7 +26,7 @@ env:
 
 jobs:
   build-test-install:
-    name: ${{ matrix.os }} / ${{ matrix.build_type }}
+    name: ${{ matrix.os }} / ${{ matrix.build_type }} / tests=${{ matrix.tests }} / examples=${{ matrix.examples }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -109,45 +109,58 @@ jobs:
             deps \
             smoke-cnerium \
             asio.tar.gz \
-            asio-asio-1-30-2
+            asio-asio-1-30-2 \
+            logs
 
-          - name: Install Vix SDK Unix
-            if: runner.os != 'Windows'
-            shell: bash
-            run: |
-              set -euxo pipefail
+      - name: Install Vix SDK Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euxo pipefail
 
-              curl -fsSL https://vixcpp.com/install.sh | VIX_VERSION="${VIX_VERSION}" VIX_INSTALL_KIND=sdk sh
+          curl -fsSL https://vixcpp.com/install.sh | VIX_VERSION="${VIX_VERSION}" VIX_INSTALL_KIND=sdk sh
 
-              test -f "$HOME/.local/lib/cmake/Vix/VixConfig.cmake"
-              test -f "$HOME/.local/include/vix.hpp"
+          test -f "$HOME/.local/lib/cmake/Vix/VixConfig.cmake"
+          test -f "$HOME/.local/include/vix.hpp"
 
-              echo "VIX_PREFIX=$HOME/.local" >> "$GITHUB_ENV"
+          echo "VIX_PREFIX=$HOME/.local" >> "$GITHUB_ENV"
 
-          - name: Install Vix SDK Windows
-            if: runner.os == 'Windows'
-            shell: pwsh
-            run: |
-              $ErrorActionPreference = "Stop"
+      - name: Install Vix SDK Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
 
-              $vixPrefix = "$env:GITHUB_WORKSPACE\deps\vix-sdk"
-              $asset = "vix-sdk-windows-x86_64.zip"
-              $url = "https://github.com/vixcpp/vix/releases/download/$env:VIX_VERSION/$asset"
+          $vixPrefix = "$env:GITHUB_WORKSPACE/deps/vix-sdk"
+          $asset = "vix-sdk-windows-x86_64.zip"
+          $url = "https://github.com/vixcpp/vix/releases/download/$env:VIX_VERSION/$asset"
 
-              New-Item -ItemType Directory -Force -Path "$vixPrefix" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$vixPrefix" | Out-Null
 
-              Invoke-WebRequest -Uri "$url" -OutFile "$asset"
-              Expand-Archive -Path "$asset" -DestinationPath "$vixPrefix" -Force
+          Invoke-WebRequest -Uri "$url" -OutFile "$asset"
+          Expand-Archive -Path "$asset" -DestinationPath "$vixPrefix" -Force
 
-              if (!(Test-Path "$vixPrefix\lib\cmake\Vix\VixConfig.cmake")) {
-                Write-Error "VixConfig.cmake not found"
-              }
+          if (!(Test-Path "$vixPrefix/lib/cmake/Vix/VixConfig.cmake")) {
+            Write-Host "VixConfig.cmake not found"
+            Get-ChildItem -Recurse "$vixPrefix" | Select-Object FullName
+            exit 1
+          }
 
-              if (!(Test-Path "$vixPrefix\include\vix.hpp")) {
-                Write-Error "vix.hpp not found"
-              }
+          if (!(Test-Path "$vixPrefix/include/vix.hpp")) {
+            Write-Host "vix.hpp not found"
+            Get-ChildItem -Recurse "$vixPrefix" | Select-Object FullName
+            exit 1
+          }
 
-              "VIX_PREFIX=$vixPrefix" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VIX_PREFIX=$vixPrefix" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Show Vix SDK prefix
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          echo "VIX_PREFIX=$VIX_PREFIX"
+          test -n "$VIX_PREFIX"
 
       - name: Fetch Softadastra low-level repository
         shell: bash
@@ -155,6 +168,7 @@ jobs:
           set -euxo pipefail
 
           git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global core.autocrlf false
 
           git clone --depth 1 --branch main https://github.com/softadastra/softadastra.git deps/softadastra
 
@@ -227,14 +241,22 @@ jobs:
           cmake --build deps/softadastra/build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
           cmake --install deps/softadastra/build --config ${{ matrix.build_type }}
 
-      - name: Fetch sdk-cpp repository
+      - name: Verify Softadastra install tree
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          test -d "${{ github.workspace }}/deps/softadastra-install/include"
+          test -f "${{ github.workspace }}/deps/softadastra-install/lib/cmake/softadastra/softadastraConfig.cmake"
+
+      - name: Fetch Softadastra SDK repository
         shell: bash
         run: |
           set -euxo pipefail
 
           git clone --depth 1 --branch main https://github.com/softadastra/sdk.git deps/sdk
 
-      - name: Build and install sdk-cpp
+      - name: Build and install Softadastra SDK
         shell: bash
         run: |
           set -euxo pipefail
@@ -250,6 +272,14 @@ jobs:
 
           cmake --build deps/sdk/build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
           cmake --install deps/sdk/build --config ${{ matrix.build_type }}
+
+      - name: Verify Softadastra SDK install tree
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          test -d "${{ github.workspace }}/deps/sdk-cpp-install/include/softadastra/sdk"
+          test -f "${{ github.workspace }}/deps/sdk-cpp-install/lib/cmake/sdk-cpp/sdk-cppConfig.cmake"
 
       - name: Configure Cnerium
         shell: bash
@@ -299,14 +329,21 @@ jobs:
           test -f install/lib/cmake/cnerium/cneriumConfigVersion.cmake
           test -f install/lib/cmake/cnerium/cneriumTargets.cmake
 
+          find install/include -maxdepth 5 -type f | sort > installed-cnerium-headers.txt
+          find install/lib/cmake -maxdepth 5 -type f | sort > installed-cnerium-cmake.txt
+
+          sed -n '1,120p' installed-cnerium-headers.txt
+          cat installed-cnerium-cmake.txt
+
       - name: Smoke test installed Cnerium package
         shell: bash
         run: |
           set -euxo pipefail
 
+          rm -rf smoke-cnerium
           mkdir -p smoke-cnerium
 
-          cat > smoke-cnerium/CMakeLists.txt <<'EOF'
+          cat > smoke-cnerium/CMakeLists.txt <<'CMAKE_EOF'
           cmake_minimum_required(VERSION 3.20)
           project(cnerium_consumer LANGUAGES CXX)
 
@@ -318,16 +355,16 @@ jobs:
 
           add_executable(app main.cpp)
           target_link_libraries(app PRIVATE cnerium::cnerium)
-          EOF
+          CMAKE_EOF
 
-          cat > smoke-cnerium/main.cpp <<'EOF'
+          cat > smoke-cnerium/main.cpp <<'CPP_EOF'
           #include <cnerium/cnerium.hpp>
 
           int main()
           {
             return 0;
           }
-          EOF
+          CPP_EOF
 
           cmake -S smoke-cnerium -B smoke-cnerium/build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
@@ -341,26 +378,51 @@ jobs:
             ./smoke-cnerium/build/app
           fi
 
+      - name: Collect logs
+        if: always()
+        shell: bash
+        run: |
+          set +e
+
+          OUT="logs/${{ matrix.os }}-${{ matrix.build_type }}"
+          mkdir -p "$OUT"
+
+          echo "runner.os=${{ runner.os }}" > "$OUT/context.txt"
+          echo "matrix.os=${{ matrix.os }}" >> "$OUT/context.txt"
+          echo "matrix.build_type=${{ matrix.build_type }}" >> "$OUT/context.txt"
+          echo "VIX_PREFIX=${VIX_PREFIX:-}" >> "$OUT/context.txt"
+
+          for file in \
+            build/CMakeCache.txt \
+            build/CMakeFiles/CMakeOutput.log \
+            build/CMakeFiles/CMakeError.log \
+            build/CMakeFiles/CMakeConfigureLog.yaml \
+            build/Testing/Temporary/LastTest.log \
+            deps/async/build/CMakeCache.txt \
+            deps/async/build/CMakeFiles/CMakeOutput.log \
+            deps/async/build/CMakeFiles/CMakeError.log \
+            deps/softadastra/build/CMakeCache.txt \
+            deps/softadastra/build/CMakeFiles/CMakeOutput.log \
+            deps/softadastra/build/CMakeFiles/CMakeError.log \
+            deps/sdk/build/CMakeCache.txt \
+            deps/sdk/build/CMakeFiles/CMakeOutput.log \
+            deps/sdk/build/CMakeFiles/CMakeError.log \
+            smoke-cnerium/build/CMakeCache.txt \
+            smoke-cnerium/build/CMakeFiles/CMakeOutput.log \
+            smoke-cnerium/build/CMakeFiles/CMakeError.log
+          do
+            if [ -f "$file" ]; then
+              mkdir -p "$OUT/$(dirname "$file")"
+              cp -f "$file" "$OUT/$file"
+            fi
+          done
+
+          find "$OUT" -type f | sort || true
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: cnerium-logs-${{ matrix.os }}-${{ matrix.build_type }}
-          path: |
-            build/CMakeCache.txt
-            build/CMakeFiles/CMakeOutput.log
-            build/CMakeFiles/CMakeError.log
-            build/Testing/Temporary/LastTest.log
-            deps/async/build/CMakeCache.txt
-            deps/async/build/CMakeFiles/CMakeOutput.log
-            deps/async/build/CMakeFiles/CMakeError.log
-            deps/softadastra/build/CMakeCache.txt
-            deps/softadastra/build/CMakeFiles/CMakeOutput.log
-            deps/softadastra/build/CMakeFiles/CMakeError.log
-            deps/sdk-cpp/build/CMakeCache.txt
-            deps/sdk-cpp/build/CMakeFiles/CMakeOutput.log
-            deps/sdk-cpp/build/CMakeFiles/CMakeError.log
-            smoke-cnerium/build/CMakeCache.txt
-            smoke-cnerium/build/CMakeFiles/CMakeOutput.log
-            smoke-cnerium/build/CMakeFiles/CMakeError.log
+          path: logs/**/*
           if-no-files-found: ignore
