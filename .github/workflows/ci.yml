@@ -96,8 +96,12 @@ jobs:
             cmake \
             ninja \
             git \
-            curl
-
+            curl \
+            pkg-config \
+            openssl@3 \
+            nlohmann-json \
+            spdlog \
+            fmt
       - name: Clean workspace
         shell: bash
         run: |
@@ -118,12 +122,66 @@ jobs:
         run: |
           set -euxo pipefail
 
-          curl -fsSL https://vixcpp.com/install.sh | VIX_VERSION="${VIX_VERSION}" VIX_INSTALL_KIND=sdk sh
+          if curl -fsSL https://vixcpp.com/install.sh | VIX_VERSION="${VIX_VERSION}" VIX_INSTALL_KIND=sdk sh; then
+            test -f "$HOME/.local/lib/cmake/Vix/VixConfig.cmake"
+            test -f "$HOME/.local/include/vix.hpp"
 
-          test -f "$HOME/.local/lib/cmake/Vix/VixConfig.cmake"
-          test -f "$HOME/.local/include/vix.hpp"
+            echo "VIX_PREFIX=$HOME/.local" >> "$GITHUB_ENV"
+            exit 0
+          fi
 
-          echo "VIX_PREFIX=$HOME/.local" >> "$GITHUB_ENV"
+          echo "Vix SDK binary install failed. Building Vix from source instead."
+
+          git clone --depth 1 --branch "${VIX_VERSION}" --recurse-submodules https://github.com/vixcpp/vix.git deps/vix
+
+          cmake -S deps/vix -B deps/vix/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/deps/vix-install" \
+            -DVIX_ENABLE_INSTALL=ON \
+            -DVIX_BUILD_EXAMPLES=OFF \
+            -DVIX_BUILD_TESTS=OFF \
+            -DVIX_ENABLE_WARNINGS=ON \
+            -DVIX_ENABLE_HTTP_COMPRESSION=OFF \
+            -DVIX_ENABLE_DB=OFF \
+            -DVIX_DB_USE_SQLITE=OFF \
+            -DVIX_DB_USE_MYSQL=OFF \
+            -DVIX_DB_USE_POSTGRES=OFF \
+            -DVIX_DB_USE_REDIS=OFF \
+            -DVIX_CORE_WITH_MYSQL=OFF \
+            -DVIX_ENABLE_ORM=OFF \
+            -DVIX_ENABLE_WEBSOCKET=ON \
+            -DVIX_ENABLE_CLI=OFF \
+            -DVIX_ENABLE_MIDDLEWARE=ON \
+            -DVIX_ENABLE_P2P=ON \
+            -DVIX_ENABLE_P2P_HTTP=ON \
+            -DVIX_ENABLE_CACHE=ON \
+            -DVIX_ENABLE_ASYNC=ON \
+            -DVIX_ENABLE_VALIDATION=ON \
+            -DVIX_ENABLE_CRYPTO=ON \
+            -DVIX_ENABLE_WEBRPC=ON \
+            -DVIX_ENABLE_TIME=ON \
+            -DVIX_ENABLE_TESTS_MODULE=ON \
+            -DVIX_ENABLE_TEMPLATE=ON \
+            -DVIX_ENABLE_PROCESS=ON \
+            -DVIX_ENABLE_THREADPOOL=ON \
+            -DVIX_ENABLE_KV=ON \
+            -DVIX_ENABLE_AGENT=OFF \
+            -DVIX_ENABLE_GAME=OFF \
+            -DVIX_TIME_BUILD_TESTS=OFF \
+            -DVIX_TIME_BUILD_BENCH=OFF \
+            -DVIX_TEMPLATE_BUILD_TESTS=OFF \
+            -DVIX_TEMPLATE_BUILD_EXAMPLES=OFF \
+            -DVIX_TEMPLATE_BUILD_BENCH=OFF \
+            -DVIX_WEBSOCKET_BUILD_TESTS=OFF \
+            -DVIX_WEBSOCKET_BUILD_EXAMPLES=OFF
+
+          cmake --build deps/vix/build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
+          cmake --install deps/vix/build --config ${{ matrix.build_type }}
+
+          test -f "${{ github.workspace }}/deps/vix-install/lib/cmake/Vix/VixConfig.cmake"
+          test -f "${{ github.workspace }}/deps/vix-install/include/vix.hpp"
+
+          echo "VIX_PREFIX=${{ github.workspace }}/deps/vix-install" >> "$GITHUB_ENV"
 
       - name: Install Vix SDK Windows
         if: runner.os == 'Windows'
