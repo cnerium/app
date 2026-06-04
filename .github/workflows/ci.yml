@@ -77,12 +77,13 @@ jobs:
           git clone https://github.com/microsoft/vcpkg "$env:GITHUB_WORKSPACE/vcpkg"
           & "$env:GITHUB_WORKSPACE/vcpkg/bootstrap-vcpkg.bat"
 
-          & "$env:GITHUB_WORKSPACE/vcpkg/vcpkg.exe" install `
+            & "$env:GITHUB_WORKSPACE/vcpkg/vcpkg.exe" install `
             fmt:x64-windows `
             spdlog:x64-windows `
             openssl:x64-windows `
             zlib:x64-windows `
-            brotli:x64-windows
+            brotli:x64-windows `
+            gtest:x64-windows
 
           "VCPKG_ROOT=$env:GITHUB_WORKSPACE/vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
           "CMAKE_TOOLCHAIN_FILE=$env:GITHUB_WORKSPACE/vcpkg/scripts/buildsystems/vcpkg.cmake" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -116,7 +117,8 @@ jobs:
             libmysqlcppconn-dev \
             libsdl2-dev \
             libsdl2-image-dev \
-            libgl1-mesa-dev
+            libgl1-mesa-dev \
+            libgtest-dev
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
@@ -134,7 +136,9 @@ jobs:
             openssl@3 \
             nlohmann-json \
             spdlog \
-            fmt
+            fmt \
+            googletest
+
       - name: Clean workspace
         shell: bash
         run: |
