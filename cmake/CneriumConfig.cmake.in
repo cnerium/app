@@ -6,7 +6,7 @@ include(CMakeFindDependencyMacro)
 # Dependencies
 # ========================
 
-find_dependency(vix CONFIG)
+find_dependency(Vix CONFIG)
 find_dependency(sdk-cpp CONFIG)
 
 # ========================
