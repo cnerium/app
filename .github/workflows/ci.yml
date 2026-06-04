@@ -66,6 +66,27 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          choco install pkgconfiglite -y
+
+          git clone https://github.com/microsoft/vcpkg "$env:GITHUB_WORKSPACE/vcpkg"
+          & "$env:GITHUB_WORKSPACE/vcpkg/bootstrap-vcpkg.bat"
+
+          & "$env:GITHUB_WORKSPACE/vcpkg/vcpkg.exe" install `
+            fmt:x64-windows `
+            spdlog:x64-windows `
+            openssl:x64-windows `
+            zlib:x64-windows `
+            brotli:x64-windows
+
+          "VCPKG_ROOT=$env:GITHUB_WORKSPACE/vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CMAKE_TOOLCHAIN_FILE=$env:GITHUB_WORKSPACE/vcpkg/scripts/buildsystems/vcpkg.cmake" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         shell: bash
@@ -92,7 +113,10 @@ jobs:
             nlohmann-json3-dev \
             libfmt-dev \
             libspdlog-dev \
-            libmysqlcppconn-dev
+            libmysqlcppconn-dev \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libgl1-mesa-dev
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
@@ -234,6 +258,8 @@ jobs:
 
           cmake -S deps/vix -B deps/vix/build -G Ninja `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+            -DCMAKE_TOOLCHAIN_FILE="$env:CMAKE_TOOLCHAIN_FILE" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
             -DCMAKE_INSTALL_PREFIX="$vixPrefix" `
             -DVIX_ENABLE_INSTALL=ON `
             -DVIX_BUILD_EXAMPLES=OFF `
@@ -423,16 +449,27 @@ jobs:
         run: |
           set -euxo pipefail
 
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_PREFIX_PATH="$VIX_PREFIX;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install" \
-            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install" \
-            -DCNERIUM_BUILD_TESTS=${{ matrix.tests }} \
-            -DCNERIUM_BUILD_EXAMPLES=${{ matrix.examples }} \
-            -DCNERIUM_INSTALL=ON \
-            -DCNERIUM_WARNINGS_AS_ERRORS=ON \
-            -DCNERIUM_ENABLE_LOCAL_DEPS=OFF \
+          CMAKE_ARGS=(
+            -S . -B build -G Ninja
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+            "-DCMAKE_PREFIX_PATH=$VIX_PREFIX;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install"
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install"
+            -DCNERIUM_BUILD_TESTS=${{ matrix.tests }}
+            -DCNERIUM_BUILD_EXAMPLES=${{ matrix.examples }}
+            -DCNERIUM_INSTALL=ON
+            -DCNERIUM_WARNINGS_AS_ERRORS=ON
+            -DCNERIUM_ENABLE_LOCAL_DEPS=OFF
             -DCNERIUM_ENABLE_PCH=OFF
+          )
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            CMAKE_ARGS+=(
+              "-DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE"
+              -DVCPKG_TARGET_TRIPLET=x64-windows
+            )
+          fi
+
+          cmake "${CMAKE_ARGS[@]}"
 
       - name: Build Cnerium
         shell: bash
@@ -503,9 +540,20 @@ jobs:
           }
           CPP_EOF
 
-          cmake -S smoke-cnerium -B smoke-cnerium/build -G Ninja \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/install;$VIX_PREFIX;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install"
+          SMOKE_ARGS=(
+            -S smoke-cnerium -B smoke-cnerium/build -G Ninja
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+            "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/install;$VIX_PREFIX;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install"
+          )
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            SMOKE_ARGS+=(
+              "-DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE"
+              -DVCPKG_TARGET_TRIPLET=x64-windows
+            )
+          fi
+
+          cmake "${SMOKE_ARGS[@]}"
 
           cmake --build smoke-cnerium/build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
 
