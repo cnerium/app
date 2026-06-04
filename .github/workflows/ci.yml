@@ -1,0 +1,338 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - release/**
+  pull_request:
+    branches:
+      - main
+      - dev
+      - release/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cnerium-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VIX_VERSION: v2.6.1
+  BUILD_JOBS: 2
+
+jobs:
+  build-test-install:
+    name: ${{ matrix.os }} / ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            build_type: Debug
+            tests: ON
+            examples: OFF
+
+          - os: ubuntu-24.04
+            build_type: Release
+            tests: ON
+            examples: ON
+
+          - os: macos-14
+            build_type: Release
+            tests: ON
+            examples: ON
+
+          - os: windows-2022
+            build_type: Release
+            tests: ON
+            examples: OFF
+
+    steps:
+      - name: Checkout Cnerium
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            git \
+            curl \
+            ca-certificates \
+            tar \
+            zip \
+            unzip \
+            libasio-dev
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          brew update
+          brew install \
+            cmake \
+            ninja \
+            git \
+            curl
+
+      - name: Clean workspace
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          rm -rf \
+            build \
+            install \
+            deps \
+            smoke-cnerium \
+            asio.tar.gz \
+            asio-asio-1-30-2
+
+      - name: Install Vix SDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          curl -fsSL https://vixcpp.com/install.sh | VIX_VERSION="${VIX_VERSION}" VIX_INSTALL_KIND=sdk sh
+
+          test -f "$HOME/.local/lib/cmake/Vix/VixConfig.cmake"
+          test -f "$HOME/.local/include/vix.hpp"
+
+      - name: Fetch Softadastra low-level repository
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+          git clone --depth 1 --branch main https://github.com/softadastra/softadastra.git deps/softadastra
+
+          git -C deps/softadastra submodule sync --recursive
+          git -C deps/softadastra submodule update --init --recursive --depth 1
+
+      - name: Fetch vix async dependency
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          git clone --depth 1 --branch dev --recurse-submodules https://github.com/vixcpp/async.git deps/async
+          git -C deps/async submodule update --init --recursive --depth 1 || true
+
+      - name: Prepare Asio for async
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          mkdir -p deps/async/third_party/asio/include
+
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            cp -r /usr/include/asio* deps/async/third_party/asio/include/ || true
+          fi
+
+          if [ ! -f deps/async/third_party/asio/include/asio.hpp ]; then
+            curl -L --fail --retry 3 --retry-delay 2 \
+              -o asio.tar.gz \
+              https://github.com/chriskohlhoff/asio/archive/refs/tags/asio-1-30-2.tar.gz
+
+            tar -xzf asio.tar.gz
+            cp -r asio-asio-1-30-2/asio/include/* deps/async/third_party/asio/include/
+          fi
+
+          test -f deps/async/third_party/asio/include/asio.hpp
+
+      - name: Build and install vix async dependency
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          cmake -S deps/async -B deps/async/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/deps/install" \
+            -DVIX_ASYNC_BUILD_TESTS=OFF \
+            -DVIX_ASYNC_BUILD_EXAMPLES=OFF \
+            -DVIX_ENABLE_SANITIZERS=OFF
+
+          cmake --build deps/async/build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
+          cmake --install deps/async/build --config ${{ matrix.build_type }}
+
+      - name: Build and install Softadastra low-level package
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          cmake -S deps/softadastra -B deps/softadastra/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/deps/install" \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/deps/softadastra-install" \
+            -DSOFTADASTRA_BUILD_EXAMPLES=OFF \
+            -DSOFTADASTRA_BUILD_TESTS=OFF \
+            -DSOFTADASTRA_BUILD_CLI=ON \
+            -DSOFTADASTRA_BUILD_APPS=OFF \
+            -DSOFTADASTRA_BUILD_CLI_APP=OFF \
+            -DSOFTADASTRA_BUILD_NODE_APP=OFF \
+            -DSOFTADASTRA_INSTALL=ON \
+            -DSOFTADASTRA_WARNINGS_AS_ERRORS=ON
+
+          cmake --build deps/softadastra/build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
+          cmake --install deps/softadastra/build --config ${{ matrix.build_type }}
+
+      - name: Fetch sdk-cpp repository
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          git clone --depth 1 --branch main https://github.com/softadastra/sdk.git deps/sdk
+
+      - name: Build and install sdk-cpp
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          cmake -S deps/sdk -B deps/sdk/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install" \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/deps/sdk-cpp-install" \
+            -DSDK_CPP_BUILD_TESTS=OFF \
+            -DSDK_CPP_BUILD_EXAMPLES=OFF \
+            -DSDK_CPP_INSTALL=ON \
+            -DSDK_CPP_WARNINGS_AS_ERRORS=ON
+
+          cmake --build deps/sdk/build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
+          cmake --install deps/sdk/build --config ${{ matrix.build_type }}
+
+      - name: Configure Cnerium
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_PREFIX_PATH="$HOME/.local;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install" \
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install" \
+            -DCNERIUM_BUILD_TESTS=${{ matrix.tests }} \
+            -DCNERIUM_BUILD_EXAMPLES=${{ matrix.examples }} \
+            -DCNERIUM_INSTALL=ON \
+            -DCNERIUM_WARNINGS_AS_ERRORS=ON \
+            -DCNERIUM_ENABLE_LOCAL_DEPS=OFF \
+            -DCNERIUM_ENABLE_PCH=OFF
+
+      - name: Build Cnerium
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          cmake --build build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
+
+      - name: Run Cnerium tests
+        if: matrix.tests == 'ON'
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          ctest --test-dir build --build-config ${{ matrix.build_type }} --output-on-failure
+
+      - name: Install Cnerium
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          cmake --install build --config ${{ matrix.build_type }}
+
+      - name: Validate installed Cnerium package tree
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          test -d install/include/cnerium
+          test -f install/lib/cmake/cnerium/cneriumConfig.cmake
+          test -f install/lib/cmake/cnerium/cneriumConfigVersion.cmake
+          test -f install/lib/cmake/cnerium/cneriumTargets.cmake
+
+      - name: Smoke test installed Cnerium package
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          mkdir -p smoke-cnerium
+
+          cat > smoke-cnerium/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.20)
+          project(cnerium_consumer LANGUAGES CXX)
+
+          set(CMAKE_CXX_STANDARD 20)
+          set(CMAKE_CXX_STANDARD_REQUIRED ON)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+
+          find_package(cnerium CONFIG REQUIRED)
+
+          add_executable(app main.cpp)
+          target_link_libraries(app PRIVATE cnerium::cnerium)
+          EOF
+
+          cat > smoke-cnerium/main.cpp <<'EOF'
+          #include <cnerium/cnerium.hpp>
+
+          int main()
+          {
+            return 0;
+          }
+          EOF
+
+          cmake -S smoke-cnerium -B smoke-cnerium/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/install;$HOME/.local;${{ github.workspace }}/deps/sdk-cpp-install;${{ github.workspace }}/deps/softadastra-install;${{ github.workspace }}/deps/install"
+
+          cmake --build smoke-cnerium/build --config ${{ matrix.build_type }} -j"${BUILD_JOBS}"
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ./smoke-cnerium/build/app.exe
+          else
+            ./smoke-cnerium/build/app
+          fi
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cnerium-logs-${{ matrix.os }}-${{ matrix.build_type }}
+          path: |
+            build/CMakeCache.txt
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
+            build/Testing/Temporary/LastTest.log
+            deps/async/build/CMakeCache.txt
+            deps/async/build/CMakeFiles/CMakeOutput.log
+            deps/async/build/CMakeFiles/CMakeError.log
+            deps/softadastra/build/CMakeCache.txt
+            deps/softadastra/build/CMakeFiles/CMakeOutput.log
+            deps/softadastra/build/CMakeFiles/CMakeError.log
+            deps/sdk-cpp/build/CMakeCache.txt
+            deps/sdk-cpp/build/CMakeFiles/CMakeOutput.log
+            deps/sdk-cpp/build/CMakeFiles/CMakeError.log
+            smoke-cnerium/build/CMakeCache.txt
+            smoke-cnerium/build/CMakeFiles/CMakeOutput.log
+            smoke-cnerium/build/CMakeFiles/CMakeError.log
+          if-no-files-found: ignore
