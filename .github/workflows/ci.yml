@@ -80,6 +80,7 @@ jobs:
             & "$env:GITHUB_WORKSPACE/vcpkg/vcpkg.exe" install `
             fmt:x64-windows `
             spdlog:x64-windows `
+            nlohmann-json:x64-windows `
             openssl:x64-windows `
             zlib:x64-windows `
             brotli:x64-windows `
