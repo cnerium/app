@@ -84,6 +84,7 @@ jobs:
             openssl:x64-windows `
             zlib:x64-windows `
             brotli:x64-windows `
+            sqlite3:x64-windows `
             gtest:x64-windows
 
           "VCPKG_ROOT=$env:GITHUB_WORKSPACE/vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
